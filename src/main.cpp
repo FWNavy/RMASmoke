@@ -96,7 +96,7 @@ int main(int c, char **argv) {
   pub.nvPublic.dataSize = 2048;
   pub.nvPublic.nameAlg = TPM2_ALG_SHA256;
   pub.nvPublic.authPolicy.size = 0;
-  pub.nvPublic.nvIndex = 0x00001007;
+  pub.nvPublic.nvIndex = TPM2_NV_INDEX_FIRST + 0x00001007;
   Tss2_Sys_NV_DefineSpace_Prepare((TSS2_SYS_CONTEXT *)context, TPM2_RH_OWNER,
                                   &auth, &pub);
   char *response = NULL;
