@@ -558,7 +558,7 @@ typedef TSS2_RC
 typedef TSS2_RC (*ESYS_CRYPTO_INIT_FNP)(void *userdata);
 
 typedef struct ESYS_CRYPTO_CALLBACKS ESYS_CRYPTO_CALLBACKS;
-struct ESYS_CRYPTO_CALLBACKS {
+struct ESYS_CRYPTO_CALLBACKS2 {
     ESYS_CRYPTO_PK_RSA_ENCRYPT_FNP rsa_pk_encrypt;
     ESYS_CRYPTO_HASH_START_FNP hash_start;
     ESYS_CRYPTO_HASH_UPDATE_FNP hash_update;
@@ -614,6 +614,6 @@ struct ESYS_CONTEXT {
     ESYS_TR sav_session2;
     ESYS_TR sav_session3;
 
-    ESYS_CRYPTO_CALLBACKS crypto_backend; /**< The backend function pointers to use
+    ESYS_CRYPTO_CALLBACKS2 crypto_backend; /**< The backend function pointers to use
                                               for crypto operations */
 };

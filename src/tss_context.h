@@ -1,3 +1,4 @@
+// #include <sys/cdefs.h>
 #include <tss2/tss2_tpm2_types.h>
 #include <cstddef>
 typedef struct TSS2_TCTI_OPAQUE_CONTEXT_BLOB TSS2_TCTI_CONTEXT;
@@ -12,7 +13,7 @@ typedef struct _TPM20_Header_In {
   UINT32 commandCode;
 } TPM20_Header_In;
 
-typedef struct {
+ struct  _TSS2_SYS_CONTEXT_BLOB {
     TSS2_TCTI_CONTEXT *tctiContext;
     UINT8 *cmdBuffer;
     UINT32 maxCmdSize;
@@ -37,5 +38,10 @@ typedef struct {
 
     /* Offset to next data in command/response buffer. */
     size_t nextData;
-} _TSS2_SYS_CONTEXT_BLOB;
+  } ;
+enum cmdStates {CMD_STAGE_INITIALIZE,
+                CMD_STAGE_PREPARE,
+                CMD_STAGE_SEND_COMMAND,
+                CMD_STAGE_RECEIVE_RESPONSE,
+                CMD_STAGE_ALL = 0xff };
 typedef _TSS2_SYS_CONTEXT_BLOB TSS2_SYS_CONTEXT_INT  ;
