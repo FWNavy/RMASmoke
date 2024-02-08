@@ -1,3 +1,5 @@
 # RMASmoke
+A tool to disable Write-Protect using an oob write in the TPM2  
 
-rmasmoke redone, because the previous one was terrible.
+# BUILDING
+Check [BUILDING.MD](BUILDING.MD);
