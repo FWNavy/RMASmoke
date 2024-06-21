@@ -1,3 +1,4 @@
+#!/bin/bash
 SHIM_PATH=$1
 MOUNT_PATH=${PWD}/mnt
 enable_rw_mount() {
@@ -22,10 +23,13 @@ is_ext2() {
   local rootfs="$1"
   local offset="${2-0}"
   # Make sure we're checking an ext2 image
-  local sb_magic_offset=$((0x438))
-  local sb_value=$(sudo dd if="$rootfs" skip=$((offset + sb_magic_offset)) \
+  local sb_magic_offset
+  sb_magic_offset=$((0x438))
+  local sb_value
+  sb_value=$(sudo dd if="$rootfs" skip=$((offset + sb_magic_offset)) \
                    count=2 bs=1 2>/dev/null)
-  local expected_sb_value=$(printf '\123\357')
+  local expected_sb_value
+  expected_sb_value=$(printf '\123\357')
   if [ "$sb_value" = "$expected_sb_value" ]; then
     return 0
   fi
@@ -61,49 +65,49 @@ print_usage() {
 cleanup() {
     bb "[CLEANING UP]"
     losetup -D
-    umount $MOUNT_PATH &> /dev/null # we don't care if it unmounts properly we just want it to unmount
-    exit -1;
+    umount "$MOUNT_PATH" &> /dev/null # we don't care if it unmounts properly we just want it to unmount
+    exit 0;
 }
-if [ $(id -u) -gt 0 ]
+if [ "$(id -u)" -gt 0 ]
 then
     rb "Not running as root"
-    exit -1
+    exit 0
 fi
 if [ $# -lt 1 ];
 then
-    print_usage $0
-    exit -1
+    print_usage "$0"
+    exit 0
 fi
 bb "[BUILDING PROJECT]"
 make # this may take a while, do not use multiprocess
 
 bb "[WORKING ON SHIM]"
-mkdir ${MOUNT_PATH}
+mkdir "${MOUNT_PATH}"
 bb "[Mounting shim at \"${MOUNT_PATH}\"]"
 LOOP_PATH=$(losetup -f)
 
 breg "Erasing stateful ${LOOP_PATH}p1"
 
 breg "Setting loop up to ${LOOP_PATH}"
-losetup -fP ${SHIM_PATH}
-mkfs.ext4 -F ${LOOP_PATH}p1 # very risky lmk if this breaks 
-mount -o loop,rw ${LOOP_PATH}p1 ${MOUNT_PATH}
+losetup -fP "${SHIM_PATH}"
+mkfs.ext4 -F "${LOOP_PATH}"p1 # very risky lmk if this breaks 
+mount -o loop,rw "${LOOP_PATH}"p1 "${MOUNT_PATH}"
 
 breg "Setting up shim stateful in ${MOUNT_PATH}"
-mkdir -p ${MOUNT_PATH}/dev_image/etc
-touch ${MOUNT_PATH}/dev_image/etc/lsb-release
+mkdir -p "${MOUNT_PATH}"/dev_image/etc
+touch "${MOUNT_PATH}"/dev_image/etc/lsb-release
 
-mkdir -p ${MOUNT_PATH}/rmasmoke_root
-tar -xvf build/rmasmoke_root.tar.xz -C ${MOUNT_PATH}/rmasmoke_root
-mkdir ${MOUNT_PATH}/usrlocal/ -p
-cp rmasmoke_shim.sh ${MOUNT_PATH}/usrlocal/rmasmoke
+mkdir -p "${MOUNT_PATH}"/rmasmoke_root
+tar -xvf build/rmasmoke_root.tar.xz -C "${MOUNT_PATH}"/rmasmoke_root
+mkdir "${MOUNT_PATH}"/usrlocal/ -p
+cp rmasmoke_shim.sh "${MOUNT_PATH}"/usrlocal/rmasmoke
 
 
 bb "[Working on partition 3 of shim (rootfs)]"
 breg "Disabling EXT4 FS Write-Protect"
-enable_rw_mount ${LOOP_PATH}p3
-mount -o loop,rw ${LOOP_PATH}p3 ${MOUNT_PATH}
-cp -v factory_install.sh ${MOUNT_PATH}/usr/bin/factory_install.sh
-umount ${MOUNT_PATH}
-umount ${MOUNT_PATH}
+enable_rw_mount "${LOOP_PATH}"p3
+mount -o loop,rw "${LOOP_PATH}"p3 "${MOUNT_PATH}"
+cp -v factory_install.sh "${MOUNT_PATH}"/usr/bin/factory_install.sh
+umount "${MOUNT_PATH}"
+umount" ${MOUNT_PATH}"
 cleanup

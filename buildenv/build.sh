@@ -1,3 +1,4 @@
+#!/bin/sh
 echo "Generating PROTOC Files"
 sh ./generate_protoc.sh
 echo "Building project"

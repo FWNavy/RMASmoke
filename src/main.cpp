@@ -10,7 +10,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <endian.h>
-#include <iostream>
 #include <linux/types.h>
 
 #include <getopt.h>
@@ -74,7 +73,8 @@ uint32_t SendTPMCommand(tpm_result *buf, size_t len, tpm_result **respBuf,
   }
   int written = write(tpmfd, buf, len);
   if (written != len) {
-    printf("written != len; %lu != %d\n with linux rc %d\n", len, written, errno);
+    printf("written != len; %lu != %d\n with linux rc %d\n", len, written,
+           errno);
     return -1;
   }
   char *responseBuffer = new char[2048];
@@ -130,9 +130,9 @@ void ReadFileToString(std::string path, std::string *data) {
     }
   } while (count == 0);
 }
-void FailForBadRC(std::string fmt, int rc) {
+void FailForBadRC(const char *fmt, int rc) {
   if (rc != 0) {
-    printf(fmt.c_str(), rc);
+    printf(fmt, rc);
     exit(-1);
     return;
   }
@@ -144,12 +144,8 @@ int main(int c, char **argv) {
     printf("need more parameters!!\n");
     return -1;
   }
-  tpm_manager::LocalData ld;
-  std::string protobufData;
-  ReadFileToString("/var/lib/tpm_manager/local_tpm_data", &protobufData);
-  ld.ParseFromString(protobufData);
-  char *owner_password = (char *)ld.owner_password().data();
-  size_t owner_password_len = ld.owner_password().size();
+  // For RMA Shim
+  // TPM Owner is cleared, so HierarchyChangeAUth
 
   TPM2B_AUTH auth;
   auth.size = 0;
@@ -188,27 +184,44 @@ int main(int c, char **argv) {
   pub.size = sizeof(TPM2B_NV_PUBLIC);
   size_t size;
   TSS2_SYS_CONTEXT *sysctx = GenerateContext(&size);
-  int rc = 0;
-  rc = Tss2_Sys_ReadPublic_Prepare(sysctx, TPM2_PERSISTENT_FIRST + 2);
-  FailForBadRC("Tss2_Sys_ReadPublic_Prepare Error %d\n", rc);
 
+  TPM2B_AUTH auth0;
+  SHA256((const u_char *)passwd, strlen(passwd), auth0.buffer);
+  auth0.size = SHA256_DIGEST_LENGTH;
+  // Fill in HierarchyChangeAuth data to change owner auth.
+  Tss2_Sys_HierarchyChangeAuth_Prepare(sysctx, TPM2_RH_OWNER, &auth0);
+  // Owner password is the default or provided passwd.
+  const char *owner_password = strdup(passwd);
+  // Owner passwords length is owner password without null temrination, (sha256
+  // hash)
+  const size_t owner_password_len = strlen(passwd);
   struct tpm_result *b = GetCommandBufferFromSys(sysctx);
   tpm_result *resultPtr = nullptr;
   size_t resp_len = 0;
-  rc = SendTPMCommand(b, be32toh(b->length), &resultPtr, &resp_len, tpmfd);
-  FailForBadRC("Tss2_Sys_ReadPublic_Prepare Error %d\n", rc);
+  int rc = 0;
 
+  TPMS_AUTH_COMMAND authcmd = {
+      .sessionHandle = TPM2_RS_PW,
+      .nonce = {.size = 0, .buffer = {}},
+      .sessionAttributes = TPMA_SESSION_CONTINUESESSION,
+
+      .hmac = {.size = 0, .buffer = {}},
+  };
+  SHA256((const u_char *)"", 0,
+         authcmd.hmac.buffer); // There is no password after tpm clear so we take the hash of nothing.
+  authcmd.hmac.size = SHA256_DIGEST_LENGTH;
+  TSS2L_SYS_AUTH_COMMAND xx = {.count = 1, .auths = {authcmd}};
+  Tss2_Sys_SetCmdAuths(sysctx, &xx);
+  rc = SendTPMCommand(b, be32toh(b->length), &resultPtr, &resp_len, tpmfd);
+  PreComplete(sysctx);
   memcpy(b, resultPtr, std::min(2048UL, resp_len));
+
+  printf("Got RC: %d\n", rc);
+
   TPM2B_PUBLIC twob_public = {};
   TPM2B_NAME name = {};
   TPM2B_NAME qualified_name = {};
-  PreComplete(sysctx);
-  rc = Tss2_Sys_ReadPublic_Complete(sysctx, &twob_public, &name,
-                                    &qualified_name);
-  FailForBadRC("Tss2_Sys_ReadPublic_Prepare Error %d\n", rc);
 
-  printf("The RC is %d with the nv type being %d and header size is %d!=%lu\n",
-         rc, twob_public.publicArea.type, htobe32(b->length), resp_len);
   twob_public = {};
   name = {};
   qualified_name = {};
@@ -217,16 +230,16 @@ int main(int c, char **argv) {
 
   rc = Tss2_Sys_NV_DefineSpace_Prepare(sysctx, TPM2_RH_OWNER, &auth, &pub);
   // TPMS Authorization, because of how it requires auth for nvram.
-  TPMS_AUTH_COMMAND authcmd = {};
-  authcmd.hmac = {
+  TPMS_AUTH_COMMAND authcmd2 = {};
+  authcmd2.hmac = {
       .size = (UINT16)owner_password_len,
       .buffer = {},
   };
-  memcpy(authcmd.hmac.buffer, owner_password, owner_password_len);
-  authcmd.nonce = {0, {}};
-  authcmd.sessionAttributes = TPMA_SESSION_CONTINUESESSION;
-  authcmd.sessionHandle = TPM2_RS_PW;
-  TSS2L_SYS_AUTH_COMMAND cmd = {1, {authcmd}};
+  memcpy(authcmd2.hmac.buffer, owner_password, owner_password_len);
+  authcmd2.nonce = {0, {}};
+  authcmd2.sessionAttributes = TPMA_SESSION_CONTINUESESSION;
+  authcmd2.sessionHandle = TPM2_RS_PW;
+  TSS2L_SYS_AUTH_COMMAND cmd = {1, {authcmd2}};
 
   Tss2_Sys_SetCmdAuths(sysctx, &cmd);
   PreComplete(sysctx);
