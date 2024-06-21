@@ -1,5 +1,6 @@
 ROOT_DIR:=$(realpath $(shell dirname $(firstword $(MAKEFILE_LIST))))
 initiate-builder:
+	mkdir gen
 	docker build -t rmasmoke_builder buildenv
 	sudo rm -rvf build
 	docker run -it -v $(ROOT_DIR):/rmasmoke --rm rmasmoke_builder:latest  bash -c "cd /rmasmoke && bash ./buildenv/build.sh" 
