@@ -202,13 +202,12 @@ int main(int c, char **argv) {
 
   TPMS_AUTH_COMMAND authcmd = {
       .sessionHandle = TPM2_RS_PW,
-      .nonce = {.size = 0, .buffer = {}},
+      .nonce = {.size = 0, .buffer = ""},
       .sessionAttributes = TPMA_SESSION_CONTINUESESSION,
 
       .hmac = {.size = 0, .buffer = {}},
   };
-  SHA256((const u_char *)"", 0,
-         authcmd.hmac.buffer); // There is no password after tpm clear so we take the hash of nothing.
+
   authcmd.hmac.size = SHA256_DIGEST_LENGTH;
   TSS2L_SYS_AUTH_COMMAND xx = {.count = 1, .auths = {authcmd}};
   Tss2_Sys_SetCmdAuths(sysctx, &xx);
