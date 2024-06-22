@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <fcntl.h>
 #define MAXLOGLEVEL 6
 #include "esys_context.h"
 
@@ -21,6 +20,7 @@
 #include <sys/fcntl.h>
 #include <sys/file.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <tss2/tss2_common.h>
@@ -137,13 +137,20 @@ void FailForBadRC(const char *fmt, int rc) {
     return;
   }
 }
-
+bool exists(std::string path) {
+  struct stat s;
+  return (stat(path.c_str(), &s) == 0);
+}
+constexpr static const char *kLocalTPMDataPath =
+    "/var/lib/tpm_manager/local_tpm_data";
 int main(int c, char **argv) {
 
   if (c <= 1) {
     printf("need more parameters!!\n");
     return -1;
   }
+  std::string dat;
+
   // For RMA Shim
   // TPM Owner is cleared, so HierarchyChangeAUth
 
@@ -184,38 +191,48 @@ int main(int c, char **argv) {
   pub.size = sizeof(TPM2B_NV_PUBLIC);
   size_t size;
   TSS2_SYS_CONTEXT *sysctx = GenerateContext(&size);
-
-  TPM2B_AUTH auth0;
-  SHA256((const u_char *)passwd, strlen(passwd), auth0.buffer);
-  auth0.size = SHA256_DIGEST_LENGTH;
-  // Fill in HierarchyChangeAuth data to change owner auth.
-  Tss2_Sys_HierarchyChangeAuth_Prepare(sysctx, TPM2_RH_OWNER, &auth0);
-  // Owner password is the default or provided passwd.
-  const char *owner_password = strdup(passwd);
-  // Owner passwords length is owner password without null temrination, (sha256
-  // hash)
-  const size_t owner_password_len = strlen(passwd);
+  bool owner_password_found = false;
+  if (exists(kLocalTPMDataPath)) {
+    tpm_manager::LocalData ld;
+    std::string dat;
+    ReadFileToString(kLocalTPMDataPath, &dat);
+    ld.ParseFromString(dat);
+    passwd = ld.owner_password().c_str();
+    owner_password_found = true;
+  }
   struct tpm_result *b = GetCommandBufferFromSys(sysctx);
   tpm_result *resultPtr = nullptr;
   size_t resp_len = 0;
   int rc = 0;
+  // Owner password is the default or provided passwd.
+  const char *owner_password = strdup(passwd);
+  // Owner passwords length is owner password without null temrination,
+  // (sha256 hash)
+  const size_t owner_password_len = strlen(passwd);
+  if (!owner_password_found) {
+    TPM2B_AUTH auth0;
+    memset(auth0.buffer, 0, 64);
+    auth0.size = SHA256_DIGEST_LENGTH;
 
-  TPMS_AUTH_COMMAND authcmd = {
-      .sessionHandle = TPM2_RS_PW,
-      .nonce = {.size = 0, .buffer = ""},
-      .sessionAttributes = TPMA_SESSION_CONTINUESESSION,
+    // Fill in HierarchyChangeAuth data to change owner auth.
+    Tss2_Sys_HierarchyChangeAuth_Prepare(sysctx, TPM2_RH_OWNER, &auth0);
 
-      .hmac = {.size = 0, .buffer = {}},
-  };
+    TPMS_AUTH_COMMAND cmd_auth = {
+        .sessionHandle = TPM2_RS_PW,
+        .nonce = {.size = 0, .buffer = {}},
+        .sessionAttributes = TPMA_SESSION_CONTINUESESSION,
 
-  authcmd.hmac.size = SHA256_DIGEST_LENGTH;
-  TSS2L_SYS_AUTH_COMMAND xx = {.count = 1, .auths = {authcmd}};
-  Tss2_Sys_SetCmdAuths(sysctx, &xx);
-  rc = SendTPMCommand(b, be32toh(b->length), &resultPtr, &resp_len, tpmfd);
-  PreComplete(sysctx);
-  memcpy(b, resultPtr, std::min(2048UL, resp_len));
+        .hmac = {.size = 0, .buffer = {}},
+    };
 
-  printf("Got RC: %d\n", rc);
+    cmd_auth.hmac.size = SHA256_DIGEST_LENGTH;
+    TSS2L_SYS_AUTH_COMMAND xx = {.count = 1, .auths = {cmd_auth}};
+    Tss2_Sys_SetCmdAuths(sysctx, &xx);
+    rc = SendTPMCommand(b, be32toh(b->length), &resultPtr, &resp_len, tpmfd);
+    PreComplete(sysctx);
+    memcpy(b, resultPtr, std::min(2048UL, resp_len));
+    printf("Got RC: %d\n", rc);
+  }
 
   TPM2B_PUBLIC twob_public = {};
   TPM2B_NAME name = {};
