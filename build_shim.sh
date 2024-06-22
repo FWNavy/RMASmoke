@@ -101,7 +101,8 @@ mkdir -p "${MOUNT_PATH}"/rmasmoke_root
 tar -xvf build/rmasmoke_root.tar.xz -C "${MOUNT_PATH}"/rmasmoke_root
 mkdir "${MOUNT_PATH}"/usrlocal/ -p
 cp rmasmoke_shim.sh "${MOUNT_PATH}"/usrlocal/rmasmoke
-
+mkdir "${MOUNT_PATH}/dev_image/etc" -p
+touch "${MOUNT_PATH}/dev_image/etc/lsb-factory"
 
 bb "[Working on partition 3 of shim (rootfs)]"
 breg "Disabling EXT4 FS Write-Protect"
