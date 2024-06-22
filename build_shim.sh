@@ -108,7 +108,7 @@ bb "[Working on partition 3 of shim (rootfs)]"
 breg "Disabling EXT4 FS Write-Protect"
 enable_rw_mount "${LOOP_PATH}"p3
 mount -o loop,rw "${LOOP_PATH}"p3 "${MOUNT_PATH}"
-cp -v factory_install.sh "${MOUNT_PATH}"/usr/bin/factory_install.sh
+cp -v factory_install.sh "${MOUNT_PATH}"/usr/sbin/factory_install.sh
 umount "${MOUNT_PATH}"
 umount" ${MOUNT_PATH}"
 cleanup
