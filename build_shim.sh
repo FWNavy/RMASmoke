@@ -103,7 +103,7 @@ mkdir "${MOUNT_PATH}"/usrlocal/ -p
 cp rmasmoke_shim.sh "${MOUNT_PATH}"/usrlocal/rmasmoke
 mkdir "${MOUNT_PATH}/dev_image/etc" -p
 touch "${MOUNT_PATH}/dev_image/etc/lsb-factory"
-
+umount "${MOUNT_PATH}"
 bb "[Working on partition 3 of shim (rootfs)]"
 breg "Disabling EXT4 FS Write-Protect"
 enable_rw_mount "${LOOP_PATH}"p3
