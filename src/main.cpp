@@ -173,14 +173,11 @@ int main(int c, char **argv) {
   printf("Successfully connected to the TPM2!\n");
   fprintf(passwd_file, "%s\n", passwd);
 
-  SHA256_CTX ctx;
-  SHA256_Init(&ctx);
-  SHA256_Update(&ctx, passwd, strlen(passwd));
-  SHA256_Final(auth.buffer, &ctx);
+  
   TPM2B_NV_PUBLIC pub;
   memset(&pub, 0, sizeof(pub));
   TPMA_NV x;
-  UINT32 nvidx = (UINT32)(0x80000A);
+  UINT32 nvidx = (UINT32)(0x80000B);
   pub.nvPublic.attributes = TPMA_NV_OWNERREAD | TPMA_NV_OWNERWRITE |
                             TPMA_NV_AUTHREAD | TPMA_NV_AUTHWRITE;
   pub.nvPublic.dataSize = 2048;
