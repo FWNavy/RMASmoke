@@ -64,8 +64,8 @@ print_usage() {
 }
 cleanup() {
     bb "[CLEANING UP]"
-    losetup -D
     umount "$MOUNT_PATH" &> /dev/null # we don't care if it unmounts properly we just want it to unmount
+    losetup -D
     exit 0;
 }
 if [ "$(id -u)" -gt 0 ]
@@ -110,5 +110,4 @@ enable_rw_mount "${LOOP_PATH}"p3
 mount -o loop,rw "${LOOP_PATH}"p3 "${MOUNT_PATH}"
 cp -v factory_install.sh "${MOUNT_PATH}"/usr/sbin/factory_install.sh
 umount "${MOUNT_PATH}"
-umount" ${MOUNT_PATH}"
-cleanup
+losetup -D
