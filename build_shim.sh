@@ -83,14 +83,14 @@ make # this may take a while, do not use multiprocess
 
 bb "[WORKING ON SHIM]"
 mkdir "${MOUNT_PATH}"
-bb "[Mounting shim at \"${MOUNT_PATH}\"]"
+bb "[Mounting shim stateful at \"${MOUNT_PATH}\"]"
 LOOP_PATH=$(losetup -f)
 
 breg "Erasing stateful ${LOOP_PATH}p1"
 
 breg "Setting loop up to ${LOOP_PATH}"
 losetup -fP "${SHIM_PATH}"
-mkfs.ext4 -F "${LOOP_PATH}"p1 # very risky lmk if this breaks 
+mkfs.ext2 -F "${LOOP_PATH}"p1 # very risky lmk if this breaks 
 mount -o loop,rw "${LOOP_PATH}"p1 "${MOUNT_PATH}"
 
 breg "Setting up shim stateful in ${MOUNT_PATH}"
